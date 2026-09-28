@@ -86,9 +86,32 @@ function simulate(kind: Kind): ExtensionStatus[] {
   return data.map((d) => ({ ...d }));
 }
 
-export const isSimulated = (kind: Kind) => !API_URLS[kind];
+// Extensions come from the ERA API (server fn). Lines stay simulated until an API exists.
+export const isSimulated = (kind: Kind) => kind === "lines" && !API_URLS.lines;
+
+// ERA doesn't provide status_changed_at: track locally when each status was first detected.
+const since = new Map<string, { status: Status; at: number }>();
 
 export async function fetchStatus(kind: Kind): Promise<ExtensionStatus[]> {
+  if (kind === "extensions") {
+    const { getEraExtensions } = await import("./era.functions");
+    const res = await getEraExtensions();
+    if (!res.ok) throw new Error(res.error ?? "ERA API error");
+    const now = Date.now();
+    return res.data.map((r) => {
+      const key = `${r.client_id}:${r.extension}`;
+      const prev = since.get(key);
+      if (!prev || prev.status !== r.status) since.set(key, { status: r.status, at: now });
+      return {
+        client_id: r.client_id,
+        client_name: r.client_name,
+        extension: r.description ? `${r.extension} · ${r.description}` : r.extension,
+        extension_id: r.extension,
+        status: r.status,
+        status_changed_at: new Date(since.get(key)!.at).toISOString(),
+      };
+    });
+  }
   const url = API_URLS[kind];
   if (!url) return simulate(kind);
   const res = await fetch(url, { cache: "no-store" });
