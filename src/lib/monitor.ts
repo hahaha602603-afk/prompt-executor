@@ -1,4 +1,5 @@
 // Data model, API access, simulation and grouping for the monitor.
+import { getEraExtensions } from "./era.functions";
 
 export type Status = "online" | "offline";
 
@@ -94,7 +95,7 @@ const since = new Map<string, { status: Status; at: number }>();
 
 export async function fetchStatus(kind: Kind): Promise<ExtensionStatus[]> {
   if (kind === "extensions") {
-    const { getEraExtensions } = await import("./era.functions");
+
     const res = await getEraExtensions();
     if (!res.ok) throw new Error(res.error ?? "ERA API error");
     const now = Date.now();
