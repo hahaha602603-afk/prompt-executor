@@ -1,5 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
+import { diagnoseEra, type DiagResult } from "@/lib/era-diagnose.functions";
 import {
   fetchStatus, fmt, formatDuration, groupByCustomer, isSimulated,
   type Customer, type ExtensionStatus, type Item, type Kind,
@@ -18,6 +20,30 @@ export const Route = createFileRoute("/")({
   }),
   component: Monitor,
 });
+
+function EraDiagnostic() {
+  const diag = useServerFn(diagnoseEra);
+  const [r, setR] = useState<DiagResult | null>(null);
+  const [busy, setBusy] = useState(false);
+  const go = async () => { setBusy(true); try { setR(await diag()); } finally { setBusy(false); } };
+  return (
+    <section className="rounded-md border border-border bg-surface p-3 font-mono text-xs">
+      <div className="flex items-center gap-3">
+        <button onClick={go} disabled={busy} className="rounded border border-input px-3 py-1.5 hover:border-ring">
+          {busy ? "Testando…" : "Diagnóstico ERA"}
+        </button>
+        {r && <span className={r.stage === "OK" ? "text-online" : "text-offline"}>[{r.stage}] {r.message}</span>}
+      </div>
+      {r && (
+        <ul className="mt-2 space-y-1 text-muted-foreground">
+          {r.steps.map((s, i) => (
+            <li key={i}>{s.method} {s.url} → {s.status ?? "sem resposta"} · {s.kind} · {s.ms} ms{s.error ? ` · ${s.error}` : ""}{s.body ? ` · ${s.body}` : ""}</li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
 
 const POLL_MS = 10_000;
 const PAGE_SIZE = 12;
@@ -213,6 +239,7 @@ function Dashboard({ kind, tv }: { kind: Kind; tv: boolean }) {
           </span>
         </section>
       )}
+      {!tv && kind === "extensions" && <EraDiagnostic />}
 
       <section className="grid gap-4 md:grid-cols-2">
         {/* LEFT — customer browsing panel */}
