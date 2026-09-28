@@ -270,7 +270,7 @@ function Dashboard({ kind, tv }: { kind: Kind; tv: boolean }) {
             <Empty text={rows.length ? `No customers currently have offline ${L.units}.` : "Loading…"} good={rows.length > 0} />
           )}
           {right.map((c) => {
-            const fresh = alerts[c.id] && now - alerts[c.id] < 5000;
+            const fresh = alerts[c.id] !== undefined && now - alerts[c.id]! < 5000;
             return (
               <Row
                 key={c.id}

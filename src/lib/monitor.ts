@@ -73,6 +73,7 @@ function simulate(kind: Kind): ExtensionStatus[] {
   const flips = Math.random() < 0.7 ? 1 + Math.floor(Math.random() * 2) : 0;
   for (let f = 0; f < flips; f++) {
     const r = data[Math.floor(Math.random() * data.length)];
+    if (!r) continue;
     // bias towards recovering so the alert panel stays readable
     if (r.status === "online" && Math.random() < 0.4) {
       r.status = "offline";
@@ -118,7 +119,7 @@ export function groupByCustomer(rows: ExtensionStatus[]): Customer[] {
     const byNum = (a: Item, b: Item) => a.number.localeCompare(b.number, undefined, { numeric: true });
     c.online.sort(byNum);
     c.offline.sort((a, b) => a.changedAt - b.changedAt);
-    c.longestOffline = c.offline.length ? now - c.offline[0].changedAt : 0;
+    c.longestOffline = c.offline.length ? now - c.offline[0]!.changedAt : 0;
   }
   return [...map.values()];
 }
