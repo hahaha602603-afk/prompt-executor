@@ -30,8 +30,8 @@ export interface Customer {
 
 // Real API URLs configured later via env; when absent a simulated feed is used.
 const API_URLS: Record<Kind, string | undefined> = {
-  extensions: import.meta.env.VITE_EXTENSIONS_API_URL as string | undefined,
-  lines: import.meta.env.VITE_LINES_API_URL as string | undefined,
+  extensions: import.meta.env['VITE_EXTENSIONS_API_URL'] as string | undefined,
+  lines: import.meta.env['VITE_LINES_API_URL'] as string | undefined,
 };
 
 // ---------- Simulation ----------
