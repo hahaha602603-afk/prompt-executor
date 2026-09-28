@@ -44,13 +44,36 @@ export const getEraExtensions = createServerFn({ method: "GET" }).handler(async 
     return { ok: false as const, error: "ERA auth failed", data: [] as EraExtension[] };
   }
   const url = new URL(`${BASE}/api/v1/register/extensionsStatus`);
-  url.searchParams.set("organization_id", "5c344b71-3531-4a38-b5c9-fc883753883f");
-  url.searchParams.set("organization_name", "oktelecom.oktelecom.info");
+  url.searchParams.set("organization_id", ORG_ID);
+  url.searchParams.set("organization_name", ORG_NAME);
+  const call = (t: string) =>
+    fetch(url, { headers: { Authorization: `Bearer ${t}`, Accept: "application/json" } });
   try {
-    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } });
+    let res = await call(token);
+    if (res.status === 401) {
+      // Invalid/expired token: force a refresh and retry once.
+      cached = null;
+      try {
+        token = await getToken();
+      } catch (e) {
+        console.error("ERA token refresh failed", e);
+        return { ok: false as const, error: "ERA auth failed", data: [] as EraExtension[] };
+      }
+      res = await call(token);
+    }
     if (!res.ok) {
       console.error("ERA API", res.status, await res.text().catch(() => ""));
-      return { ok: false as const, error: `ERA API ${res.status}`, data: [] as EraExtension[] };
+      const error =
+        res.status === 401
+          ? "ERA auth failed"
+          : res.status === 400
+            ? "ERA API 400 (organization_id/name)"
+            : res.status === 429
+              ? "ERA API rate limited"
+              : res.status >= 500
+                ? "ERA API temporarily unavailable"
+                : `ERA API ${res.status}`;
+      return { ok: false as const, error, data: [] as EraExtension[] };
     }
     const json = (await res.json()) as { data?: Record<string, unknown>[] };
     const data: EraExtension[] = (json.data ?? []).map((r) => {
