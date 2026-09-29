@@ -93,10 +93,14 @@ export const isSimulated = (kind: Kind) => kind === "lines" && !API_URLS.lines;
 // ERA doesn't provide status_changed_at: track locally when each status was first detected.
 const since = new Map<string, { status: Status; at: number }>();
 
+// Organizations whose API failed on the last poll (shown as "API indisponível").
+export let eraUnavailable: string[] = [];
+
 export async function fetchStatus(kind: Kind): Promise<ExtensionStatus[]> {
   if (kind === "extensions") {
 
     const res = await getEraExtensions();
+    eraUnavailable = res.orgs.filter((o) => !o.ok).map((o) => o.name);
     if (!res.ok) throw new Error(res.error ?? "ERA API error");
     const now = Date.now();
     return res.data.map((r) => {

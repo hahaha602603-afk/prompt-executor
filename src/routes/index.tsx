@@ -2,8 +2,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { diagnoseEra, type DiagResult } from "@/lib/era-diagnose.functions";
+import { ERA_ORGS } from "@/lib/era-orgs";
 import {
-  fetchStatus, fmt, formatDuration, groupByCustomer, isSimulated,
+  eraUnavailable, fetchStatus, fmt, formatDuration, groupByCustomer, isSimulated,
   type Customer, type ExtensionStatus, type Item, type Kind,
 } from "@/lib/monitor";
 
@@ -23,23 +24,60 @@ export const Route = createFileRoute("/")({
 
 function EraDiagnostic() {
   const diag = useServerFn(diagnoseEra);
-  const [r, setR] = useState<DiagResult | null>(null);
+  const [sel, setSel] = useState<string>(ERA_ORGS[0]!.id);
+  const [res, setRes] = useState<Record<string, DiagResult>>({});
   const [busy, setBusy] = useState(false);
-  const go = async () => { setBusy(true); try { setR(await diag()); } finally { setBusy(false); } };
+  const test = async (ids: string[]) => {
+    setBusy(true);
+    try {
+      let i = 0;
+      await Promise.all(Array.from({ length: 5 }, async () => {
+        while (i < ids.length) {
+          const id = ids[i++]!;
+          try {
+            const r = await diag({ data: { id } });
+            setRes((p) => ({ ...p, [id]: r }));
+          } catch { /* ignore single failure */ }
+        }
+      }));
+    } finally { setBusy(false); }
+  };
+  const list = ERA_ORGS.filter((o) => res[o.id]).map((o) => res[o.id]!);
   return (
     <section className="rounded-md border border-border bg-surface p-3 font-mono text-xs">
-      <div className="flex items-center gap-3">
-        <button onClick={go} disabled={busy} className="rounded border border-input px-3 py-1.5 hover:border-ring">
-          {busy ? "Testando…" : "Diagnóstico ERA"}
-        </button>
-        {r && <span className={r.stage === "OK" ? "text-online" : "text-offline"}>[{r.stage}] {r.message}</span>}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-bold">Diagnóstico ERA</span>
+        <select value={sel} onChange={(e) => setSel(e.target.value)} className="rounded border border-input bg-card px-2 py-1.5">
+          {ERA_ORGS.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+        </select>
+        <button onClick={() => test([sel])} disabled={busy} className="rounded border border-input px-3 py-1.5 hover:border-ring">Testar cliente</button>
+        <button onClick={() => test(ERA_ORGS.map((o) => o.id))} disabled={busy} className="rounded border border-input px-3 py-1.5 hover:border-ring">Testar todos</button>
+        {busy && <span className="text-muted-foreground">Testando…</span>}
       </div>
-      {r && (
-        <ul className="mt-2 space-y-1 text-muted-foreground">
-          {r.steps.map((s, i) => (
-            <li key={i}>{s.method} {s.url} → {s.status ?? "sem resposta"} · {s.kind} · {s.ms} ms{s.error ? ` · ${s.error}` : ""}{s.body ? ` · ${s.body}` : ""}</li>
-          ))}
-        </ul>
+      {list.length > 0 && (
+        <div className="mt-2 max-h-80 overflow-auto">
+          <table className="w-full text-left">
+            <thead className="text-muted-foreground">
+              <tr>{["Cliente", "Domínio", "DNS", "Porta 4435", "Token", "extensionsStatus", "Ramais", "Online", "Offline", "Erro"].map((h) => <th key={h} className="px-2 py-1">{h}</th>)}</tr>
+            </thead>
+            <tbody>
+              {list.map((r) => (
+                <tr key={r.id} className="border-t border-border">
+                  <td className="px-2 py-1">{r.name}</td>
+                  <td className="px-2 py-1">{r.domain}</td>
+                  <td className="px-2 py-1">{r.dns}</td>
+                  <td className="px-2 py-1">{r.port}</td>
+                  <td className="px-2 py-1">{r.token}</td>
+                  <td className={`px-2 py-1 ${r.status === "OK" ? "text-online" : "text-offline"}`}>{r.status}</td>
+                  <td className="px-2 py-1">{r.extensions ?? "—"}</td>
+                  <td className="px-2 py-1 text-online">{r.online ?? "—"}</td>
+                  <td className="px-2 py-1 text-offline">{r.offline ?? "—"}</td>
+                  <td className="px-2 py-1 text-offline">{r.error ?? ""}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </section>
   );
@@ -235,6 +273,7 @@ function Dashboard({ kind, tv }: { kind: Kind; tv: boolean }) {
           <span className="font-mono text-xs text-muted-foreground">
             {error ? <span className="text-offline">API error: {error}</span> : updated ? `Updated ${new Date(updated).toLocaleTimeString()}` : "Loading…"}
             {isSimulated(kind) && " · simulated data"}
+            {kind === "extensions" && eraUnavailable.length > 0 && <span className="text-offline"> · API indisponível: {eraUnavailable.length} cliente(s) ({eraUnavailable.join(", ")})</span>}
             <span className="ml-2 inline-block h-2 w-2 animate-dot rounded-full bg-online align-middle" />
           </span>
         </section>

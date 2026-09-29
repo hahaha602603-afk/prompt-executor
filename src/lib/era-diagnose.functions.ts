@@ -1,90 +1,90 @@
 import { createServerFn } from "@tanstack/react-start";
+import { ERA_ORGS, eraBase } from "./era-orgs";
 
-const BASE = "https://oktelecom.oktelecom.info:4435";
-const ORG_ID = "5c344b71-3531-4a38-b5c9-fc883753883f";
-const ORG_NAME = "oktelecom.oktelecom.info";
-
-export type Stage = "A" | "B" | "C" | "D" | "E" | "OK";
-export interface DiagStep {
-  url: string;
-  method: string;
-  status: number | null;
-  ms: number;
-  kind: string;
-  error: string | null;
-  body: string | null;
-}
 export interface DiagResult {
-  stage: Stage;
-  message: string;
-  steps: DiagStep[];
+  id: string;
+  name: string;
+  domain: string;
+  dns: string;
+  port: string;
+  token: string;
+  status: string;
   extensions: number | null;
+  online: number | null;
+  offline: number | null;
+  error: string | null;
 }
 
-const mask = (s: string) =>
-  s.replace(/("(?:token|access_token)"\s*:\s*")[^"]*"/gi, '$1***"').slice(0, 800);
-
-function classifyError(e: unknown): { kind: string; stage: Stage } {
+function classify(e: unknown): string {
   const err = e as { name?: string; message?: string; cause?: { code?: string; message?: string } };
-  const txt = `${err?.name ?? ""} ${err?.message ?? ""} ${err?.cause?.code ?? ""} ${err?.cause?.message ?? ""}`;
-  if (/ENOTFOUND|EAI_AGAIN|getaddrinfo|dns/i.test(txt)) return { kind: "erro de DNS", stage: "A" };
-  if (/ECONNREFUSED|refused/i.test(txt)) return { kind: "conexão recusada pelo servidor remoto", stage: "B" };
-  if (/Timeout|ETIMEDOUT|aborted|timed out/i.test(txt)) return { kind: "timeout", stage: "B" };
-  if (/CERT|SSL|TLS|self.signed|certificate/i.test(txt)) return { kind: "erro de certificado TLS/SSL", stage: "B" };
-  return { kind: `erro de conexão: ${txt.trim()}`, stage: "B" };
+  const t = `${err?.name ?? ""} ${err?.message ?? ""} ${err?.cause?.code ?? ""} ${err?.cause?.message ?? ""}`;
+  if (/ENOTFOUND|EAI_AGAIN|getaddrinfo/i.test(t)) return "erro de DNS";
+  if (/ECONNREFUSED|refused/i.test(t)) return "conexão recusada";
+  if (/Timeout|ETIMEDOUT|aborted|timed out/i.test(t)) return "timeout";
+  if (/CERT|SSL|TLS|certificate/i.test(t)) return "erro TLS/SSL";
+  return `erro de conexão: ${t.trim()}`;
 }
 
-const httpKind = (s: number) =>
-  ({ 400: "HTTP 400", 401: "HTTP 401", 403: "HTTP 403", 404: "HTTP 404", 429: "HTTP 429" } as Record<number, string>)[s] ??
-  (s >= 500 ? `HTTP ${s} (erro do servidor)` : `HTTP ${s}`);
-
-async function run(url: string, init: RequestInit): Promise<{ step: DiagStep; res?: Response; text?: string; stage?: Stage }> {
-  const t0 = Date.now();
-  const method = init.method ?? "GET";
+async function dns(domain: string): Promise<string> {
   try {
-    const res = await fetch(url, { ...init, signal: AbortSignal.timeout(15_000) });
-    const text = await res.text().catch(() => "");
-    const step: DiagStep = { url, method, status: res.status, ms: Date.now() - t0, kind: res.ok ? "OK" : httpKind(res.status), error: null, body: mask(text) };
-    console.log("[ERA diag]", JSON.stringify(step));
-    return { step, res, text };
-  } catch (e) {
-    const c = classifyError(e);
-    const step: DiagStep = { url, method, status: null, ms: Date.now() - t0, kind: c.kind, error: String((e as Error)?.message ?? e), body: null };
-    console.log("[ERA diag]", JSON.stringify(step));
-    return { step, stage: c.stage };
-  }
+    const r = await fetch(`https://cloudflare-dns.com/dns-query?name=${domain}&type=A`, {
+      headers: { Accept: "application/dns-json" }, signal: AbortSignal.timeout(5000),
+    });
+    const j = (await r.json()) as { Answer?: { type: number; data: string }[] };
+    const ip = j.Answer?.find((a) => a.type === 1)?.data;
+    return ip ? `OK (${ip})` : "FALHA (sem registro A)";
+  } catch { return "FALHA"; }
 }
 
-export const diagnoseEra = createServerFn({ method: "POST" }).handler(async (): Promise<DiagResult> => {
-  const steps: DiagStep[] = [];
-  const tokUrl = `${BASE}/api/v1/token/generate`;
-  const t = await run(tokUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ organization_id: ORG_ID }),
+export const diagnoseEra = createServerFn({ method: "POST" })
+  .inputValidator((d: { id: string }) => d)
+  .handler(async ({ data }): Promise<DiagResult> => {
+    const o = ERA_ORGS.find((x) => x.id === data.id);
+    if (!o) throw new Error("Cliente não encontrado");
+    const r: DiagResult = {
+      id: o.id, name: o.name, domain: o.domain, dns: await dns(o.domain),
+      port: "—", token: "—", status: "—", extensions: null, online: null, offline: null, error: null,
+    };
+    let res: Response;
+    try {
+      res = await fetch(`${eraBase(o)}/token/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ organization_id: o.organization_id }),
+        signal: AbortSignal.timeout(12_000),
+      });
+    } catch (e) {
+      r.port = `FALHA (${classify(e)})`;
+      r.error = `Porta ${o.api_port}: ${classify(e)}`;
+      return r;
+    }
+    r.port = "OK";
+    const tj = (await res.json().catch(() => ({}))) as { token?: string; message?: string; data?: { token?: string } };
+    const token = tj.token ?? tj.data?.token;
+    if (!res.ok || !token) {
+      r.token = `FALHA (HTTP ${res.status})`;
+      r.error = tj.message ?? "Token não gerado";
+      return r;
+    }
+    r.token = "OK";
+    const u = new URL(`${eraBase(o)}/register/extensionsStatus`);
+    u.searchParams.set("organization_id", o.organization_id);
+    u.searchParams.set("organization_name", o.domain);
+    try {
+      const x = await fetch(u, { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" }, signal: AbortSignal.timeout(12_000) });
+      const j = (await x.json().catch(() => ({}))) as { message?: string; data?: Record<string, unknown>[] };
+      if (!x.ok || !Array.isArray(j.data)) {
+        r.status = `FALHA (HTTP ${x.status})`;
+        r.error = j.message ?? "Resposta inválida";
+        return r;
+      }
+      r.status = "OK";
+      r.extensions = j.data.length;
+      r.online = j.data.filter((e) => String(e["register"]).toLowerCase() === "true").length;
+      r.offline = r.extensions - r.online;
+    } catch (e) {
+      r.status = `FALHA (${classify(e)})`;
+      r.error = classify(e);
+    }
+    return r;
   });
-  steps.push(t.step);
-  if (!t.res) return { stage: t.stage!, message: `Falha na etapa ${t.stage}: ${t.step.kind} (${tokUrl})`, steps, extensions: null };
-  if (!t.res.ok) return { stage: "C", message: `Falha na etapa C (geração do token): ${t.step.kind}`, steps, extensions: null };
-  let token: string | undefined;
-  try {
-    const j = JSON.parse(t.text ?? "") as { token?: string; data?: { token?: string } };
-    token = j.token ?? j.data?.token;
-  } catch { /* handled below */ }
-  if (!token) return { stage: "C", message: "Falha na etapa C: conexão realizada mas resposta inválida (sem token)", steps, extensions: null };
-
-  const u = new URL(`${BASE}/api/v1/register/extensionsStatus`);
-  u.searchParams.set("organization_id", ORG_ID);
-  u.searchParams.set("organization_name", ORG_NAME);
-  const x = await run(u.toString(), { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } });
-  steps.push(x.step);
-  if (!x.res) return { stage: "D", message: `Falha na etapa D (extensionsStatus): ${x.step.kind}`, steps, extensions: null };
-  if (!x.res.ok) return { stage: "D", message: `Falha na etapa D (extensionsStatus): ${x.step.kind}`, steps, extensions: null };
-  try {
-    const j = JSON.parse(x.text ?? "") as { data?: unknown };
-    if (!Array.isArray(j.data)) throw new Error("data não é array");
-    return { stage: "OK", message: `Conexão OK: ${j.data.length} ramais recebidos`, steps, extensions: j.data.length };
-  } catch (e) {
-    return { stage: "E", message: `Falha na etapa E (processamento): resposta inválida — ${(e as Error).message}`, steps, extensions: null };
-  }
-});
