@@ -11,10 +11,10 @@ import {
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Lines & Extensions Monitor" },
-      { name: "description", content: "Real-time monitor of customers, telephone lines and offline extensions." },
-      { property: "og:title", content: "Lines & Extensions Monitor" },
-      { property: "og:description", content: "See at a glance which customers have offline extensions." },
+      { title: "Monitor de Linhas e Ramais" },
+      { name: "description", content: "Monitor em tempo real de clientes, linhas telefônicas e ramais offline." },
+      { property: "og:title", content: "Monitor de Linhas e Ramais" },
+      { property: "og:description", content: "Veja rapidamente quais clientes possuem ramais offline." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -58,7 +58,7 @@ function EraDiagnostic() {
         <div className="mt-2 max-h-80 overflow-auto">
           <table className="w-full text-left">
             <thead className="text-muted-foreground">
-              <tr>{["Cliente", "Domínio", "DNS", "Porta 4435", "Token", "extensionsStatus", "Ramais", "Online", "Offline", "Erro"].map((h) => <th key={h} className="px-2 py-1">{h}</th>)}</tr>
+              <tr>{["Cliente", "Domínio", "DNS", "Porta 4435", "Token", "Status dos ramais", "Ramais", "Online", "Offline", "Erro"].map((h) => <th key={h} className="px-2 py-1">{h}</th>)}</tr>
             </thead>
             <tbody>
               {list.map((r) => (
@@ -136,8 +136,8 @@ function useFeed(kind: Kind) {
 }
 
 const LABEL: Record<Kind, { unit: string; units: string; Unit: string }> = {
-  extensions: { unit: "extension", units: "extensions", Unit: "EXTENSIONS" },
-  lines: { unit: "line", units: "lines", Unit: "LINES" },
+  extensions: { unit: "ramal", units: "ramais", Unit: "RAMAIS" },
+  lines: { unit: "linha", units: "linhas", Unit: "LINHAS" },
 };
 
 function Monitor() {
@@ -163,7 +163,7 @@ function Monitor() {
     <div className={`min-h-screen ${tv ? "tv" : ""}`}>
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3 md:px-6">
         <h1 className="font-mono text-sm font-bold tracking-[0.2em] text-muted-foreground">
-          LINES <span className="text-foreground">&amp;</span> EXTENSIONS MONITOR
+          LINHAS <span className="text-foreground">&amp;</span> RAMAIS
         </h1>
         <div className="flex items-center gap-2">
           <div className="flex rounded-md border border-border p-1 font-mono text-sm">
@@ -185,7 +185,7 @@ function Monitor() {
               tv ? "border-primary bg-primary text-primary-foreground" : "border-border text-muted-foreground hover:text-foreground"
             }`}
           >
-            🖥️ TV MODE
+            🖥️ MODO TV
           </button>
         </div>
       </header>
@@ -258,8 +258,8 @@ function Dashboard({ kind, tv }: { kind: Kind; tv: boolean }) {
         <Stat label={`ONLINE ${L.Unit}`} value={onlineTotal} icon="🟢" tone="online" />
         <Stat label={`OFFLINE ${L.Unit}`} value={offlineTotal} icon="🔴" tone={offlineTotal ? "offline" : "neutral"} />
         <Stat label={`TOTAL ${L.Unit}`} value={onlineTotal + offlineTotal} icon="☎" tone="neutral" />
-        <Stat label="CUSTOMERS" value={customers.length} icon="👥" tone="neutral" />
-        <Stat label={`CUSTOMERS WITH OFFLINE ${L.Unit}`} value={withOffline} icon="⚠" tone={withOffline ? "warn" : "neutral"} />
+        <Stat label="CLIENTES" value={customers.length} icon="👥" tone="neutral" />
+        <Stat label={`CLIENTES COM ${L.Unit} OFFLINE`} value={withOffline} icon="⚠" tone={withOffline ? "warn" : "neutral"} />
       </section>
 
       {!tv && (
@@ -267,12 +267,12 @@ function Dashboard({ kind, tv }: { kind: Kind; tv: boolean }) {
           <input
             value={query}
             onChange={(e) => { setQuery(e.target.value); setPage(1); }}
-            placeholder={`🔎 Search customer or ${L.unit}`}
+            placeholder={`🔎 Buscar cliente ou ${L.unit}`}
             className="min-w-64 flex-1 rounded-md border border-input bg-surface px-4 py-2.5 text-sm outline-none focus:border-ring"
           />
           <span className="font-mono text-xs text-muted-foreground">
-            {error ? <span className="text-offline">API error: {error}</span> : updated ? `Updated ${new Date(updated).toLocaleTimeString()}` : "Loading…"}
-            {isSimulated(kind) && " · simulated data"}
+            {error ? <span className="text-offline">API error: {error}</span> : updated ? `Atualizado às ${new Date(updated).toLocaleTimeString("pt-BR")}` : "Loading…"}
+            {isSimulated(kind) && " · dados simulados"}
             {kind === "extensions" && eraUnavailable.length > 0 && <span className="text-offline"> · API indisponível: {eraUnavailable.length} cliente(s) ({eraUnavailable.join(", ")})</span>}
             <span className="ml-2 inline-block h-2 w-2 animate-dot rounded-full bg-online align-middle" />
           </span>
@@ -283,16 +283,16 @@ function Dashboard({ kind, tv }: { kind: Kind; tv: boolean }) {
       <section className="grid gap-4 md:grid-cols-2">
         {/* LEFT — customer browsing panel */}
         <Panel
-          title={`🟢 CUSTOMERS`}
+          title={`🟢 CLIENTES`}
           tone="online"
           control={!tv && (
             <SortSelect value={leftSort} onChange={(v) => setLeftSort(v as LeftSort)} options={[
-              ["az", "Customer name A-Z"], ["za", "Customer name Z-A"],
-              ["most", `Most online ${L.units}`], ["fewest", `Fewest online ${L.units}`],
+              ["az", "Nome do cliente A-Z"], ["za", "Nome do cliente Z-A"],
+              ["most", `Mais ${L.units} online`], ["fewest", `Menos ${L.units} online`],
             ]} />
           )}
         >
-          {leftPage.length === 0 && <Empty text={rows.length ? "No customers match your search." : "Loading customers…"} />}
+          {leftPage.length === 0 && <Empty text={rows.length ? "Nenhum cliente corresponde à busca." : "Carregando clientes…"} />}
           {leftPage.map((c) => (
             <Row
               key={c.id}
@@ -303,7 +303,7 @@ function Dashboard({ kind, tv }: { kind: Kind; tv: boolean }) {
               badge={<span className="font-mono text-xs text-muted-foreground">{c.online.length} online</span>}
             >
               {matchingItems(c) ? (
-                <ItemList title="SEARCH RESULTS" items={matchingItems(c)!} now={now} unit={L.unit} />
+                <ItemList title="RESULTADOS DA BUSCA" items={matchingItems(c)!} now={now} unit={L.unit} />
               ) : c.online.length ? (
                 <ItemList title={`🟢 ONLINE ${L.Unit}`} items={c.online} now={now} unit={L.unit} footer={`Total online: ${c.online.length}`} />
               ) : (
@@ -313,27 +313,27 @@ function Dashboard({ kind, tv }: { kind: Kind; tv: boolean }) {
           ))}
           {!tv && pages > 1 && (
             <div className="flex items-center justify-between border-t border-border px-4 py-3 font-mono text-xs text-muted-foreground">
-              <button disabled={cur <= 1} onClick={() => setPage(cur - 1)} className="rounded px-2 py-1 hover:text-foreground disabled:opacity-30">‹ Prev</button>
+              <button disabled={cur <= 1} onClick={() => setPage(cur - 1)} className="rounded px-2 py-1 hover:text-foreground disabled:opacity-30">‹ Anterior</button>
               <span>Page {cur} of {pages}</span>
-              <button disabled={cur >= pages} onClick={() => setPage(cur + 1)} className="rounded px-2 py-1 hover:text-foreground disabled:opacity-30">Next ›</button>
+              <button disabled={cur >= pages} onClick={() => setPage(cur + 1)} className="rounded px-2 py-1 hover:text-foreground disabled:opacity-30">Próxima ›</button>
             </div>
           )}
         </Panel>
 
         {/* RIGHT — alert panel */}
         <Panel
-          title={`🔴 CUSTOMERS WITH OFFLINE ${L.Unit}`}
+          title={`🔴 CLIENTES COM ${L.Unit} OFFLINE`}
           tone="offline"
           control={!tv && (
             <SortSelect value={rightSort} onChange={(v) => setRightSort(v as RightSort)} options={[
-              ["most", `Most offline ${L.units}`], ["fewest", `Fewest offline ${L.units}`],
-              ["longest", "Longest offline duration"], ["shortest", "Shortest offline duration"],
-              ["az", "Customer name A-Z"], ["za", "Customer name Z-A"],
+              ["most", `Mais ${L.units} offline`], ["fewest", `Menos ${L.units} offline`],
+              ["longest", "Maior tempo offline"], ["shortest", "Menor tempo offline"],
+              ["az", "Nome do cliente A-Z"], ["za", "Nome do cliente Z-A"],
             ]} />
           )}
         >
           {right.length === 0 && (
-            <Empty text={rows.length ? `No customers currently have offline ${L.units}.` : "Loading…"} good={rows.length > 0} />
+            <Empty text={rows.length ? `Nenhum cliente possui ${L.units} offline no momento.` : "Loading…"} good={rows.length > 0} />
           )}
           {right.map((c) => {
             const fresh = alerts[c.id] !== undefined && now - alerts[c.id]! < 5000;
@@ -383,7 +383,7 @@ function Panel({ title, tone, control, children }: { title: string; tone: "onlin
 function SortSelect({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: [string, string][] }) {
   return (
     <label className="flex items-center gap-2 text-xs text-muted-foreground">
-      Sort by:
+      Ordenar por:
       <select value={value} onChange={(e) => onChange(e.target.value)} className="rounded-md border border-input bg-card px-2 py-1.5 text-xs text-foreground outline-none">
         {options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
       </select>
