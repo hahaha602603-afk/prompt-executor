@@ -122,7 +122,7 @@ const LABEL: Record<Kind, { unit: string; units: string; Unit: string }> = {
 };
 
 function Monitor() {
-  const [tab, setTab] = useState<Kind>("extensions");
+  const [tab] = useState<Kind>("extensions");
   const [tv, setTv] = useState(false);
   const toggleTv = async () => {
     const on = !tv; setTv(on);
@@ -132,15 +132,15 @@ function Monitor() {
   return (
     <div className={`min-h-screen ${tv ? "tv" : ""}`}>
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3 md:px-6">
-        <h1 className="font-mono text-sm font-bold tracking-[0.2em] text-muted-foreground">OKTELECOM <span className="text-foreground">-</span> CALIOPE</h1>
+        <h1 className="font-mono text-sm font-bold tracking-[0.2em] text-[#ff6a00] [text-shadow:0_0_5px_#ff6a00,0_0_10px_#ff6a00,0_0_20px_#ff6a00]">OKTELECOM - CALIOPE</h1>
         <div className="flex items-center gap-2">
           <div className="flex rounded-md border border-border p-1 font-mono text-sm">
-            {(["lines", "extensions"] as Kind[]).map((k) => <button key={k} onClick={() => setTab(k)} className={`rounded px-4 py-1.5 font-bold tracking-widest transition-colors ${tab === k ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"}`}>[ {LABEL[k].Unit} ]</button>)}
+            <button className="rounded px-4 py-1.5 font-bold tracking-widest bg-foreground text-background">[ RAMAIS ]</button>
           </div>
           <button onClick={toggleTv} className={`rounded-md border px-3 py-2 font-mono text-xs font-bold tracking-widest transition-colors ${tv ? "border-primary bg-primary text-primary-foreground" : "border-border text-muted-foreground hover:text-foreground"}`}>🖥️ MODO TV</button>
         </div>
       </header>
-      <Dashboard key={tab} kind={tab} tv={tv} />
+      <Dashboard kind="extensions" tv={tv} />
     </div>
   );
 }
